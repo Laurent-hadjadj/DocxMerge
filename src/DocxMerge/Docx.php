@@ -1,258 +1,359 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: krustnic
- * Date: 05.02.14
- * Time: 11:59
- */
+/*
+*  Ma-Moulinette
+*  --------------
+*  Copyright (c) 2021-2025.
+*  Laurent HADJADJ <laurent_h@me.com>.
+*  Licensed Creative Common  CC-BY-NC-SA 4.0.
+*  ---
+*  Vous pouvez obtenir une copie de la licence à l'adresse suivante :
+*  http://creativecommons.org/licenses/by-nc-sa/4.0/
+*/
 
 namespace DocxMerge\DocxMerge;
 
 use DocxMerge\libraries\TbsZip;
 
-class Docx {
-
+/**
+ * Class Docx
+ * Handles the manipulation of DOCX files, including merging, adding files, and replacing placeholders.
+ */
+class Docx
+{
     // Path to current docx file
-    private $docxPath;
+    private string $docxPath;
 
     // Current _RELS data
-    private $docxRels;
+    private string $docxRels;
     // Current DOCUMENT data
-    private $docxDocument;
+    private string $docxDocument;
     // Current CONTENT_TYPES data
-    private $docxContentTypes;
+    private string $docxContentTypes;
 
-    private $docxZip;
+    private TbsZip $docxZip;
 
-    private $RELS_ZIP_PATH          = "word/_rels/document.xml.rels";
-    private $DOC_ZIP_PATH           = "word/document.xml";
-    private $CONTENT_TYPES_PATH     = "[Content_Types].xml";
-    private $ALT_CHUNK_TYPE         = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk";
-    private $ALT_CHUNK_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
+    private string $relsZipPath = "word/_rels/document.xml.rels";
+    private string $docZipPath = "word/document.xml";
+    private string $contentTypesPath = "[Content_Types].xml";
+    private string $altChunkType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk";
+    private string $altChunkContentType =
+"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
 
     // Array "zip path" => "content"
-    private $headerAndFootersArray = [];
+    private array $headerAndFootersArray = [];
 
-    public function __construct( $docxPath ) {
+    /**
+     * Docx constructor.
+     *
+     * @param string $docxPath Path to the DOCX file.
+     */
+    public function __construct(string $docxPath)
+    {
         $this->docxPath = $docxPath;
 
         $this->docxZip = new TbsZip();
-        $this->docxZip->Open( $this->docxPath );
+        $this->docxZip->Open($this->docxPath);
 
-        $this->docxRels = $this->readContent( $this->RELS_ZIP_PATH );
-        $this->docxDocument = $this->readContent( $this->DOC_ZIP_PATH );
-        $this->docxContentTypes = $this->readContent( $this->CONTENT_TYPES_PATH );
+        $this->docxRels = $this->readContent($this->relsZipPath);
+        $this->docxDocument = $this->readContent($this->docZipPath);
+        $this->docxContentTypes = $this->readContent($this->contentTypesPath);
     }
 
-    private function readContent( $zipPath ) {
-        $content = $this->docxZip->FileRead( $zipPath );
-
-        return $content;
+    /**
+     * Reads the content of a file in the ZIP archive.
+     *
+     * @param string $zipPath Path to the file in the ZIP archive.
+     * @return string The content of the file.
+     */
+    private function readContent(string $zipPath): string
+    {
+        return $this->docxZip->FileRead($zipPath);
     }
 
-    private function writeContent( $content, $zipPath ) {
+    /**
+     * Writes content to a file in the ZIP archive.
+     *
+     * @param string $content The content to write.
+     * @param string $zipPath Path to the file in the ZIP archive.
+     * @return int Returns 0 on success.
+     */
+    private function writeContent(string $content, string $zipPath): int
+    {
         $this->docxZip->FileReplace($zipPath, $content, TBSZIP_STRING);
         return 0;
     }
 
-    public function addFile( $filePath, $zipName, $refID ) {
-        $content = file_get_contents( $filePath );
-        $this->docxZip->FileAdd( $zipName, $content );
+    /**
+     * Adds a file to the DOCX archive.
+     *
+     * @param string $filePath Path to the file to add.
+     * @param string $zipName Name of the file in the ZIP archive.
+     * @param string $refID Reference ID for the file.
+     * @param bool $addPageBreak Whether to add a page break before the file.
+     * @return void
+     */
+    public function addFile(string $filePath, string $zipName, string $refID, bool $addPageBreak = false): void
+    {
+        $content = file_get_contents($filePath);
+        $this->docxZip->FileAdd($zipName, $content);
 
-        $this->addReference( $zipName, $refID );
-        $this->addAltChunk( $refID );
-        $this->addContentType( $zipName );
+        $this->addReference($zipName, $refID);
+        $this->addAltChunk($refID, $addPageBreak);
+        $this->addContentType($zipName);
     }
 
-    private function addReference( $zipName, $refID ) {
-        $relXmlString = '<Relationship Target="../'.$zipName.'" Type="'.$this->ALT_CHUNK_TYPE.'" Id="'.$refID.'"/>';
+    /**
+     * Adds a reference to the DOCX archive.
+     *
+     * @param string $zipName Name of the file in the ZIP archive.
+     * @param string $refID Reference ID for the file.
+     * @return void
+     */
+    private function addReference(string $zipName, string $refID): void
+    {
+        $relXmlString = '<Relationship Target="../' . $zipName . '" Type="' . $this->altChunkType . '" Id="' . $refID . '"/>';
 
         $p = strpos($this->docxRels, '</Relationships>');
         $this->docxRels = substr_replace($this->docxRels, $relXmlString, $p, 0);
     }
 
-    private function addAltChunk( $refID ) {
-        $xmlItem = '<w:altChunk r:id="'.$refID.'"/>';
+    /**
+     * Adds an altChunk to the DOCX archive.
+     *
+     * @param string $refID Reference ID for the file.
+     * @param bool $addPageBreak Whether to add a page break before the file.
+     * @return void
+     */
+    private function addAltChunk(string $refID, bool $addPageBreak): void
+    {
+        $pageBreak = $addPageBreak ? '<w:p><w:r><w:br w:type="page" /></w:r></w:p>' : '';
+        $xmlItem = $pageBreak . '<w:altChunk r:id="' . $refID . '"/>';
 
         $p = strpos($this->docxDocument, '</w:body>');
         $this->docxDocument = substr_replace($this->docxDocument, $xmlItem, $p, 0);
-    }
+}
 
-    private function addContentType( $zipName ) {
-        $xmlItem = '<Override ContentType="'.$this->ALT_CHUNK_CONTENT_TYPE.'" PartName="/'.$zipName.'"/>';
+    /**
+     * Adds a content type to the DOCX archive.
+     *
+     * @param string $zipName Name of the file in the ZIP archive.
+     * @return void
+     */
+    private function addContentType(string $zipName): void
+    {
+        $xmlItem = '<Override ContentType="' . $this->altChunkContentType . '" PartName="/' . $zipName . '"/>';
 
         $p = strpos($this->docxContentTypes, '</Types>');
         $this->docxContentTypes = substr_replace($this->docxContentTypes, $xmlItem, $p, 0);
     }
 
-    public function loadHeadersAndFooters() {
-        $relsXML = new \SimpleXMLElement( $this->docxRels );
-        foreach( $relsXML as $rel ) {
-            if ( $rel["Type"] == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" ||
-                 $rel["Type"] == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" ) {
-                $path = "word/".$rel["Target"];
-                $this->headerAndFootersArray[ $path ] = $this->readContent( $path );
+    /**
+     * Loads headers and footers from the DOCX archive.
+     *
+     * @return void
+     */
+    public function loadHeadersAndFooters(): void
+    {
+        $relsXML = new \SimpleXMLElement($this->docxRels);
+        foreach ($relsXML as $rel) {
+            if ($rel["Type"] == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" ||
+                    $rel["Type"] == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header") {
+                    $path = "word/" . $rel["Target"];
+                    $this->headerAndFootersArray[$path] = $this->readContent($path);
             }
         }
     }
 
-    /* Add styles for text */
-
-    private function findAndReplaceWithStyles( $key, $value ) {
+    /**
+     * Finds and replaces placeholders with styles in the DOCX document.
+     *
+     * @param string $key The placeholder to search for.
+     * @param array $value The value to replace the placeholder with, including styles.
+     * @return void
+     */
+    private function findAndReplaceWithStyles(string $key, array $value): void
+    {
         $lastPos = 0;
-        $positions = array();
+        $positions = [];
 
-        while (($lastPos = strpos($this->docxDocument, $key, $lastPos))!== false) {
-            $positions[] = $lastPos;
-            $lastPos = $lastPos + strlen($key);
+        while (($lastPos = strpos($this->docxDocument, $key, $lastPos)) !== false) {
+                $positions[] = $lastPos;
+                $lastPos += strlen($key);
         }
 
         foreach ($positions as $position) {
-            $wrStartPosition1 = strrpos( substr( $this->docxDocument, 0, $position ), "<w:r " );
-            $wrStartPosition2 = strrpos( substr( $this->docxDocument, 0, $position ), "<w:r>" );
+            $wrStartPosition1 = strrpos(substr($this->docxDocument, 0, $position), "<w:r ");
+            $wrStartPosition2 = strrpos(substr($this->docxDocument, 0, $position), "<w:r>");
 
-            if ( $wrStartPosition1 === FALSE && $wrStartPosition2 === FALSE ) continue;
-            if ( $wrStartPosition1 === FALSE ) $wrStartPosition = $wrStartPosition2;
-            if ( $wrStartPosition2 === FALSE ) $wrStartPosition = $wrStartPosition1;
-            if ( $wrStartPosition1 !== FALSE && $wrStartPosition2 !== FALSE ) {
-                $wrStartPosition = max( $wrStartPosition1, $wrStartPosition2 );
+            if ($wrStartPosition1 === false && $wrStartPosition2 === false) {
+                    continue;
+            }
+            if ($wrStartPosition1 === false) {
+                    $wrStartPosition = $wrStartPosition2;
+            }
+            if ($wrStartPosition2 === false) {
+                    $wrStartPosition = $wrStartPosition1;
+            }
+            if ($wrStartPosition1 !== false && $wrStartPosition2 !== false) {
+                    $wrStartPosition = max($wrStartPosition1, $wrStartPosition2);
             }
 
-            $wrStopPosition    = strpos( substr( $this->docxDocument, $position ), "</w:r>" ) + $position + 6;
+            $wrStopPosition = strpos(substr($this->docxDocument, $position), "</w:r>") + $position + 6;
 
-            // Use placeholder w:r id-s
-            $wrTagStopPosition = strpos( substr( $this->docxDocument, $wrStartPosition ), ">" ) + $wrStartPosition + 1;
-            $wrTag = substr( $this->docxDocument, $wrStartPosition, $wrTagStopPosition - $wrStartPosition );
+            $wrTagStopPosition = strpos(substr($this->docxDocument, $wrStartPosition), ">") + $wrStartPosition + 1;
+            $wrTag = substr($this->docxDocument, $wrStartPosition, $wrTagStopPosition - $wrStartPosition);
 
-            // Use placeholder styles
-            $wPrStartPosition  = strpos( substr( $this->docxDocument, $wrStartPosition ), "<w:rPr" ) + $wrStartPosition;
-            $wPrStopPosition   = strpos( substr( $this->docxDocument, $wPrStartPosition ), "</w:rPr>" ) + $wPrStartPosition;
-            $wPrTag = substr( $this->docxDocument, $wPrStartPosition, $wPrStopPosition - $wPrStartPosition );
+            $wPrStartPosition = strpos(substr($this->docxDocument, $wrStartPosition), "<w:rPr") + $wrStartPosition;
+            $wPrStopPosition = strpos(substr($this->docxDocument, $wPrStartPosition), "</w:rPr>") + $wPrStartPosition;
+            $wPrTag = substr($this->docxDocument, $wPrStartPosition, $wPrStopPosition - $wPrStartPosition);
 
             $insertString = "";
             $idx = 0;
-            $len = count( $value );
-            foreach( $value as $word ) {
-                $wPrStyles = $wPrTag;
-                foreach( $word["decoration"] as $style ) {
-                    if ( $style == "bold" ) {
-                        $wPrStyles .= "<w:b/>";
+            $len = count($value);
+            foreach ($value as $word) {
+                    $wPrStyles = $wPrTag;
+                    foreach ($word["decoration"] as $style) {
+                            if ($style == "bold") {
+                                    $wPrStyles .= "<w:b/>";
+                            }
+                            if ($style == "italic") {
+                                    $wPrStyles .= "<w:i />";
+                            }
+                            if ($style == "underline") {
+                                    $wPrStyles .= '<w:u w:val="single"/>';
+                            }
+                    }
+                    $wPrStyles .= "</w:rPr>";
+
+                    $insertPart = $wrTag . $wPrStyles . '<w:t xml:space="preserve">' . $word["value"] . '</w:t></w:r>';
+                    $insertString .= $insertPart;
+
+                    if ($idx != $len - 1) {
+                            $insertString .= '<w:r><w:t xml:space="preserve"> </w:t></w:r>';
                     }
 
-                    if ( $style == "italic" ) {
-                        $wPrStyles .= "<w:i />";
-                    }
-
-                    if ( $style == "underline" ) {
-                        $wPrStyles .= '<w:u w:val="single"/>';
-                    }
-                }
-                $wPrStyles .= "</w:rPr>";
-
-                $insertPart = $wrTag.$wPrStyles.'<w:t xml:space="preserve">'.$word["value"].'</w:t></w:r>';
-                $insertString .= $insertPart;
-
-                // Add space between words, except last
-                if ( $idx != $len - 1 ) {
-                    $insertString .= '<w:r><w:t xml:space="preserve"> </w:t></w:r>';
-                }
-
-                $idx += 1;
+                    $idx += 1;
             }
 
-            $this->docxDocument = substr( $this->docxDocument, 0, $wrStartPosition ).$insertString.substr( $this->docxDocument, $wrStopPosition);
+            $this->docxDocument = substr($this->docxDocument, 0, $wrStartPosition) .
+            $insertString .substr($this->docxDocument, $wrStopPosition);
         }
     }
 
-    /* end */
-
-    public function findAndReplace( $key, $value ) {
-        // Apply styles
-        if ( is_array( $value ) ) {
-            $this->findAndReplaceWithStyles($key, $value);
-            return;
+    /**
+     * Finds and replaces placeholders in the DOCX document.
+     *
+     * @param string $key The placeholder to search for.
+     * @param string|array $value The value to replace the placeholder with.
+     * @return void
+     */
+    public function findAndReplace(string $key, $value): void
+    {
+        if (is_array($value)) {
+                $this->findAndReplaceWithStyles($key, $value);
+                return;
         }
 
-        // Search/Replace in document
-        $this->docxDocument = str_replace( $key, $value, $this->docxDocument );
-        // Search/Replace in footers and headers
-        foreach( $this->headerAndFootersArray as $path => $content ) {
-            $this->headerAndFootersArray[$path] = str_replace( $key, $value, $content );
+        $value = htmlspecialchars($value);
+
+        $this->docxDocument = str_replace($key, $value, $this->docxDocument);
+        foreach ($this->headerAndFootersArray as $path => $content) {
+                $this->headerAndFootersArray[$path] = str_replace($key, $value, $content);
         }
     }
 
-    public function findAndReplaceFirst( $key, $value ) {
-        // Search/Replace first key in document                
-        if ( strpos( $this->docxDocument, $key ) === FALSE ) return;
-        if ( strpos( $this->docxDocument, $key ) + strlen( $key ) === FALSE ) return;
-
-        $leftPart  = substr( $this->docxDocument, 0, strpos( $this->docxDocument, $key ) );
-        $rightPart = substr( $this->docxDocument, strpos( $this->docxDocument, $key ) + strlen( $key ) );
-        $this->docxDocument = $leftPart.$value.$rightPart;
-    }
-
-    public function flush() {
-        // Save RELS data
-        $this->writeContent( $this->docxRels, $this->RELS_ZIP_PATH );
-        // Save DOCUMENT data
-        $this->writeContent( $this->docxDocument, $this->DOC_ZIP_PATH );
-        // Save CONTENT TYPES data
-        $this->writeContent( $this->docxContentTypes, $this->CONTENT_TYPES_PATH );
-        // Save footers and headers
-        foreach( $this->headerAndFootersArray as $path => $content ) {
-            $this->writeContent( $content, $path );
+    /**
+     * Finds and replaces the first occurrence of a placeholder in the DOCX document.
+     *
+     * @param string $key The placeholder to search for.
+     * @param string $value The value to replace the placeholder with.
+     * @return void
+     */
+    public function findAndReplaceFirst(string $key, string $value): void
+    {
+        $pos = strpos($this->docxDocument, $key);
+        if ($pos === false) {
+                return;
         }
 
-        // Save the merge into a third file
-        // We cannot save to current file because it damage ZIP file
-        $tempFile = tempnam( dirname( $this->docxPath ), "dm" );
+        $leftPart = substr($this->docxDocument, 0, $pos);
+        $rightPart = substr($this->docxDocument, $pos + strlen($key));
+        $this->docxDocument = $leftPart . $value . $rightPart;
+    }
 
+    /**
+     * Saves the changes to the DOCX file.
+     *
+     * @return void
+     */
+    public function flush(): void
+    {
+        $this->writeContent($this->docxRels, $this->relsZipPath);
+        $this->writeContent($this->docxDocument, $this->docZipPath);
+        $this->writeContent($this->docxContentTypes, $this->contentTypesPath);
+        foreach ($this->headerAndFootersArray as $path => $content) {
+                $this->writeContent($content, $path);
+        }
+
+        $tempFile = tempnam(dirname($this->docxPath), "dm");
         $this->docxZip->Flush(TBSZIP_FILE, $tempFile);
 
-        // Replace current file with tempFile content
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            copy( $tempFile, $this->docxPath );
-        }
-        else {
-            rename($tempFile, $this->docxPath);
+                $status = copy($tempFile, $this->docxPath);
+                if ($status) {
+                        unlink($tempFile);
+                }
+        } else {
+                rename($tempFile, $this->docxPath);
         }
     }
 
-    public function copyRowWithPlaceholder( $placeholder, $N ) {
-        $needle = "\${".$placeholder."}";
+    /**
+     * Copies a row with a placeholder in the DOCX document.
+     *
+     * @param string $placeholder The placeholder to search for.
+     * @param int $n The number of times to copy the row.
+     * @return void
+     */
+    public function copyRowWithPlaceholder(string $placeholder, int $n): void
+    {
+        $needle = "\${" . $placeholder . "}";
 
-        $pos = strpos( $this->docxDocument, $needle );
-        if ( $pos !== FALSE ) {
-            // find tables's tr
-            $trBeginPos = strrpos( substr( $this->docxDocument, 0, $pos ), "<w:tr " );
+        $pos = strpos($this->docxDocument, $needle);
+        if ($pos !== false) {
+            $trBeginPos = strrpos(substr($this->docxDocument, 0, $pos), "<w:tr ");
 
-            if ( $trBeginPos === FALSE ) {
-                return;
+            if ($trBeginPos === false) {
+                    return;
             }
 
-            $trEndPos = strpos( substr( $this->docxDocument, $pos ), "</w:tr>" );
+            $trEndPos = strpos(substr($this->docxDocument, $pos), "</w:tr>");
 
-            if ( $trEndPos === FALSE ) {
-                return;
+            if ($trEndPos === false) {
+                    return;
             }
 
             $trEndPos += $pos + 7;
 
-            $trBody = substr( $this->docxDocument, $trBeginPos, $trEndPos - $trBeginPos );
+            $trBody = substr($this->docxDocument, $trBeginPos, $trEndPos - $trBeginPos);
             $result = "";
 
-            for( $i=0; $i<$N; $i++ ) {
-                $result .= $trBody;
+            for ($i = 0; $i < $n; $i++) {
+                    $result .= $trBody;
             }
 
-            // insert new rows
-            $this->docxDocument = substr_replace( $this->docxDocument, $result, $trEndPos, 0 );
-        }        
+            $this->docxDocument = substr_replace($this->docxDocument, $result, $trEndPos, 0);
+        }
     }
 
-    public function prepare() {
+    /**
+     * Prepares the DOCX document for processing.
+     *
+     * @return void
+     */
+    public function prepare(): void
+    {
         $prettify = new Prettify();
-        $this->docxDocument = $prettify->removeTags( $this->docxDocument );
+        $this->docxDocument = $prettify->removeTags($this->docxDocument);
     }
-
-} 
+}
