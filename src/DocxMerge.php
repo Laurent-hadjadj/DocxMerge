@@ -13,39 +13,47 @@
 
 namespace DocxMerge;
 
-use DocxMerge\DocxMerge\Docx;
+use MaMoulinette\Docx;
 
+/**
+ * [Description DocxMerge]
+ */
 class DocxMerge
 {
     private static string $docxExtension = '.docx';
 
     /**
-     * Merge files in $docxFilesArray order and create new file $outDocxFilePath.
+     * [Description for merge]
      *
-     * @param array $docxFilesArray Array of DOCX file paths to merge.
-     * @param string $outDocxFilePath Path to the output DOCX file.
-     * @param bool $addPageBreak Whether to add a page break between files.
-     * @return int Returns 0 on success, -1 if no files to merge, -2 if cannot create file.
+     * @param array $docxFilesArray
+     * @param string $outDocxFilePath
+     * @param bool $addPageBreak
+     *
+     * @return int
+     *
+     * Created at: 15/06/2025 11:42:50 (Europe/Paris)
+     * @author     Laurent HADJADJ <laurent_h@me.com>
+     * @copyright  Licensed Ma-Moulinette - Creative Common CC-BY-NC-SA 4.0.
      */
     public function merge(array $docxFilesArray, string $outDocxFilePath, bool $addPageBreak = false): int
     {
         if (empty($docxFilesArray)) {
-                // No files to merge
-                return -1;
+            // No files to merge
+            return -1;
         }
 
-        if (substr($outDocxFilePath, -5) !== self::$docxExtension) {
-                $outDocxFilePath .= self::$docxExtension;
+        if (!str_ends_with($outDocxFilePath, self::$docxExtension)) {
+            $outDocxFilePath .= self::$docxExtension;
         }
 
         if (!copy($docxFilesArray[0], $outDocxFilePath)) {
-                // Cannot create file
-                return -2;
+            // Cannot create file
+            return -2;
         }
 
         $docx = new Docx($outDocxFilePath);
         for ($i = 1; $i < count($docxFilesArray); $i++) {
-                $docx->addFile($docxFilesArray[$i], "part{$i}" . self::$docxExtension, "rId10{$i}", $addPageBreak);
+            $docx->addFile($docxFilesArray[$i], "part{$i}" . self::$docxExtension, "rId10{$i}", $addPageBreak);
         }
 
         $docx->flush();
@@ -53,65 +61,96 @@ class DocxMerge
         return 0;
     }
 
+
     /**
-     * Replace placeholders in a DOCX template with provided data.
+     * [Description for setValues]
      *
-     * @param string $templateFilePath Path to the DOCX template file.
-     * @param string $outputFilePath Path to the output DOCX file.
-     * @param array $data Array of data to replace placeholders with.
-     * @return int Returns 0 on success, -1 if template file does not exist, -2 if cannot create output file.
+     * @param string $templatePath
+     * @param string $outputPath
+     * @param array $data
+     * @param callable|null $copyFunction
+     *
+     * @return int
+     *
+     * Created at: 15/06/2025 11:42:56 (Europe/Paris)
+     * @author     Laurent HADJADJ <laurent_h@me.com>
+     * @copyright  Licensed Ma-Moulinette - Creative Common CC-BY-NC-SA 4.0.
      */
-    public function setValues(string $templateFilePath, string $outputFilePath, array $data): int
+    public function setValues(string $templatePath, string $outputPath, array $data, ?callable $copyFunction = null): int
     {
-        if (!file_exists($templateFilePath)) {
-                return -1;
+        // Vérifier l'existence du template
+        if (!file_exists($templatePath)) {
+            return -1; // Template non trouvé
         }
 
-        if (!copy($templateFilePath, $outputFilePath)) {
-                // Cannot create output file
-                return -2;
+        // Vérifier que l'extension de sortie est .docx
+        if (pathinfo($outputPath, PATHINFO_EXTENSION) !== 'docx') {
+            return 0; // Mauvais format de sortie
         }
 
-        $docx = new Docx($outputFilePath);
-        $docx->prepare();
-        $docx->loadHeadersAndFooters();
+        // Copier le fichier template vers la destination
+        if ($copyFunction === null) {
+            $copyFunction = function ($src, $dst) {
+                return copy($src, $dst);
+            };
+        }
 
-        // Add table rows
-        if (array_key_exists("tables", $data)) {
+        if (!$copyFunction($templatePath, $outputPath)) {
+            return -2; // Impossible de copier le fichier
+        }
+
+        // Charger le document
+        $docx = new Docx($outputPath);
+
+        // Remplir les champs simples
+        foreach ($data as $key => $value) {
+            if ($key === 'tables') {
+                // On gère les tables plus bas
+                continue;
+            }
+
+            if (is_string($value) || is_numeric($value)) {
+                $docx->findAndReplace("\${$key}", (string)$value);
+            }
+        }
+
+        // Gestion des tables (si elles existent et ne sont pas vides)
+        if (
+            isset($data["tables"]) &&
+            is_array($data["tables"]) &&
+            count($data["tables"]) > 0 &&
+            isset($data["tables"][0]) &&
+            is_array($data["tables"][0]) &&
+            count($data["tables"][0]) > 0
+        ) {
             $firstTable = $data["tables"][0];
 
-            foreach ($firstTable as $key => $value) {
-                    // Get first placeholder count (other should be same length)
-                    $rowCount = count($firstTable[$key]);
-
-                    // Copy row with specified placeholder N times
+            // Copier les lignes avec placeholders
+            foreach ($firstTable as $key => $valueArray) {
+                if (is_array($valueArray)) {
+                    $rowCount = count($valueArray);
                     $docx->copyRowWithPlaceholder($key, $rowCount - 1);
-                    break;
-            }
-        }
-
-        foreach ($data as $key => $value) {
-            // Skip table placeholders
-            if ($key === "tables") {
-                    continue;
-            }
-
-            $docx->findAndReplace("\${$key}", $value);
-        }
-
-        // Fill tables
-        if (array_key_exists("tables", $data)) {
-                $firstTable = $data["tables"][0];
-
-                foreach ($firstTable as $key => $valueArray) {
-                        foreach ($valueArray as $value) {
-                                $docx->findAndReplaceFirst("\${$key}", $value);
-                        }
+                    break; // On ne copie qu'une fois
                 }
+            }
+
+            // Remplir les tableaux
+            foreach ($data["tables"] as $table) {
+                if (!is_array($table))  { continue; }
+
+                foreach ($table as $key => $valueArray) {
+                    if (!is_array($valueArray)) { continue; }
+
+                    foreach ($valueArray as $value) {
+                        $docx->findAndReplaceFirst("\${$key}", $value);
+                    }
+                }
+            }
         }
 
+        // Sauvegarder le document modifié
         $docx->flush();
 
-        return 0;
+        return 0; // Succès
     }
 }
