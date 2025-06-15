@@ -10,7 +10,7 @@ for TinyButStrong Template Engine (TBS). OpenTbs makes TBS able to merge OpenOff
 Visit http://www.tinybutstrong.com
 */
 
-namespace DocxMerge\libraries;
+namespace MaMoulinette\Libraries;
 
 define('TBSZIP_DOWNLOAD',1);   // download (default)
 define('TBSZIP_NOHEADER',4);   // option to use with DOWNLOAD: no header is sent
