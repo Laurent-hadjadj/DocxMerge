@@ -1,3 +1,5 @@
 /vendor/
 /tests/test_result/*
 /.idea
+/tests/temp/*
+.phpunit.result.cache
