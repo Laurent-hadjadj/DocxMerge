@@ -1,62 +1,105 @@
-DocxMerge
-=========
+# DocxMerge
 
-Simple library for merging multiple MS Word ".docx" files into one
+┏┓┏┓┏┓━┏━━┓━┏━━━┓\
+┃┃┃┃┃┃━┗┫┣┛━┃┏━┓┃\
+┃┃┃┃┃┃━━┃┃━━┃┗━┛┃\
+┃┗┛┗┛┃━━┃┃━━┃┏━━┛\
+┗┓┏┓┏┛━┏┫┣┓━┃┃\
+━┗┛┗┛━━┗━━┛━┗┛  NeXt 1.1.0
 
-Features
---------
+🟢 **Version** : 1.1.0-Release\
+🔁 **Fork** de DocxMerge 1.0.1 (<https://github.com/krustnic/DocxMerge/>)\
+📥 **GitHub** : <https://github.com/Laurent-hadjadj/DocxMerge/>
 
-+ Create valid docx for MS Office 2007 and above
+## Introduction
 
-Details
--------
+Simple bibliothèque pour fusionner plusieurs fichiers MS Word `.docx` en un seul.
 
-+ For working with docx's ZIP I'm using [TbsZip](http://www.tinybutstrong.com/apps/tbszip/tbszip_help.html)
+Cette librairie date de 2016 pour la dernière version 1.0.1. Plusieurs propositions de corrections sont disponibles sur le dépôt GitHub d’origine, mais aucune n’a été fusionnée à ce jour.
 
-Install
--------
+Nous utilisons cette librairie dans notre projet, conjointement avec PhpWord, pour fusionner un modèle de document avec un fichier généré dynamiquement. 
 
-    php composer.phar require krustnic/docx-merge
+Nous avons donc décidé de forker la version 1.0.1 et d’y intégrer les corrections nécessaires. Nous en avons également profité pour mettre à jour la version de TbsZip afin d’assurer la compatibilité avec PHP 8.2 et supérieur.
 
-Merge Example
--------------
+> **Note :**
+> Les modifications apportées permettent une utilisation immédiate, mais une réécriture complète du code serait souhaitable pour en améliorer la maintenabilité.
 
-    require "vendor/autoload.php";
-    use DocxMerge\DocxMerge;
-    
-	$dm = new DocxMerge();
-	$dm->merge( [
-        "templates/TplPage1.docx",
-        "templates/TplPage2.docx"
-    ], "/tmp/result.docx" );
+## Licence
 
+### Code source
 
-setValues Example
------------------
+Ce projet est sous licence Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International. Voir le fichier [LICENSE-CC](LICENSE-CC) pour plus de détails.
 
-	# Use "${NAME}" in docx file to create placeholders
+### Package
 
-	require "vendor/autoload.php";
-    use DocxMerge\DocxMerge;
-    
-	$dm = new DocxMerge();
-	$dm->setValues( "templates/template.docx",
-                    "templates/result.docx",
-    				array( "NAME" => "Sterling", "SURNAME" => "Archer" ) );
-    				
-Or with styles ("bold", "italic", "underline"):
-    
-    $dm->setValues( "templates/template.docx",
-                    "templates/result.docx",
-                    [ 
-        			    "NAME" => [
-        			        [
-                                "value"      => "Sterling",
-                                "decoration" => [ "bold", "italic" ]
-        			        ],
-        			        [
-                                "value"      => "Archer",
-                                "decoration" => [ "bold", "underline" ] 
-        			        ]
-        			    ]
-                    ]);
+Ce package est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## Fonctionnalités
+
+- Génère un fichier DOCX valide pour MS Office 2007 et versions ultérieures
+
+## Détails techniques
+
+Pour manipuler l’archive ZIP du DOCX, nous utilisons [TbsZip](http://www.tinybutstrong.com/MaMoulinettes/tbszip/tbszip_help.html).
+
+## Installation
+
+```bash
+composer require laurent-hadjadj/docx-merge
+```
+
+## Exemple de fusion (merge)
+
+```php
+require 'vendor/autoload.php';
+use MaMoulinette\DocxMerge;
+
+$dm = new DocxMerge();
+$dm->merge(
+    [
+        'templates/TplPage1.docx',
+        'templates/TplPage2.docx',
+    ],
+    '/tmp/result.docx'
+);
+```
+
+## Exemple de remplacement de valeurs (setValues)
+
+> Utilisez des placeholders comme ${NAME} dans votre fichier `.docx`.
+
+```php
+require 'vendor/autoload.php';
+use MaMoulinette\DocxMerge;
+
+$dm = new DocxMerge();
+$dm->setValues(
+    'templates/template.docx',
+    'templates/result.docx',
+    [
+        'NAME'    => 'Sterling',
+        'SURNAME' => 'Archer',
+    ]
+);
+```
+
+### Avec styles (gras, italique, souligné)
+
+```php
+$dm->setValues(
+    'templates/template.docx',
+    'templates/result.docx',
+    [
+        'NAME' => [
+            [
+                'value'      => 'Sterling',
+                'decoration' => ['bold', 'italic'],
+            ],
+            [
+                'value'      => 'Archer',
+                'decoration' => ['bold', 'underline'],
+            ],
+        ],
+    ]
+);
+```
